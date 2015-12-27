@@ -8,12 +8,14 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.os.IBinder;
+import android.os.*;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
 
 import com.guardian.log.Logger;
+import com.jaredrummler.android.processes.ProcessManager;
+import com.jaredrummler.android.processes.models.AndroidAppProcess;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -41,10 +43,11 @@ public class NotificationInterceptorService extends NotificationListenerService 
 
         try {
 
-            Log.e(TAG, "PackageName: " + sbn.getPackageName());
-            Log.e(TAG, "TicketText: " + sbn.getNotification().tickerText);
-            Log.e(TAG, "Content: " + sbn.getNotification().extras.getString("android.text"));
-            Log.e(TAG, "Others: " + sbn.getNotification().extras.toString());
+            log("<--- NEW TASK");
+            log("PackageName: " + sbn.getPackageName());
+            log("TicketText: " + sbn.getNotification().tickerText);
+            log("Content: " + sbn.getNotification().extras.getString("android.text"));
+            log("<--- END TASK");
 
 //            Logger logger = new Logger();
 //            logger.setPackageName(sbn.getPackageName());
@@ -66,19 +69,31 @@ public class NotificationInterceptorService extends NotificationListenerService 
         try {
 
             for (StatusBarNotification statusBarNotification : this.getActiveNotifications()) {
-                if (statusBarNotification.getNotification().extras.getString("android.text").toUpperCase().contains("MENU")) {
+                if (statusBarNotification.getNotification().extras.getString("android.text") != null) {
+                    if (statusBarNotification.getNotification().extras.getString("android.text").toUpperCase().contains("TIM")) {
 
-                    ActivityManager am = (ActivityManager) this.getSystemService(Activity.ACTIVITY_SERVICE);
+                        log("TIM found, killing .. ");
 
-                    Log.e(TAG, "TIM found, killing in 3 seconds.. ");
-                    Thread.sleep(3000);
-                    Log.e(TAG, "isClearable? " + statusBarNotification.isClearable());
-                    am.killBackgroundProcesses(statusBarNotification.getPackageName());
-                    Log.e(TAG, String.format("Process %s dead.", statusBarNotification.getPackageName()));
+                        List<AndroidAppProcess> processes = ProcessManager.getRunningAppProcesses();
+                        boolean dead = false;
+                        int processid = 0;
 
-                    stopForeground(true);
-                    cancelNotification(statusBarNotification.getKey());
+                        for (AndroidAppProcess process : processes) {
 
+                            log("Current process name: " + process.getPackageName() + ". Searching for: " + statusBarNotification.getPackageName());
+                            if (process.getPackageName().equals(statusBarNotification.getPackageName())) {
+                                processid = process.stat().getPid();
+                                log("The " + statusBarNotification.getPackageName() + " PID to kill is: " + processid);
+                                android.os.Process.killProcess(processid);
+                                log("MOTHERFUCKER !!!");
+                                dead = true;
+                                break;
+                            }
+                        }
+
+                        log("Dead? " + dead);
+
+                    }
                 }
             }
         } catch (Exception e) {
@@ -107,5 +122,9 @@ public class NotificationInterceptorService extends NotificationListenerService 
             Log.e(TAG, "Installed: " + string);
         }
         Log.e(TAG, "Total of installed: " + strings.size());
+    }
+
+    private void log(String toLog) {
+        Log.e(TAG, toLog);
     }
 }
